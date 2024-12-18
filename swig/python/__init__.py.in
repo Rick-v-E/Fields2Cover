@@ -1,1 +1,1 @@
- 
+from .fields2cover import *

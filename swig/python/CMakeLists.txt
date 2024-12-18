@@ -1,27 +1,26 @@
-# Include python
-find_package(
-  Python REQUIRED
-  COMPONENTS
-    Interpreter
-    Development
-)
+find_package(Python REQUIRED COMPONENTS Interpreter Development)
 
-if(Python_VERSION VERSION_GREATER_EQUAL 3)
-  list(APPEND CMAKE_SWIG_FLAGS "-py3;-DPY3")
+if(Python_VERSION VERSION_LESS 3)
+  message(FATAL_ERROR "Python 3 or greater is required. Python 2 is not supported.")
 endif()
+
+set(OUTPUT_FOLDER "${CMAKE_BINARY_DIR}/fields2cover_python/")
+set(CMAKE_SWIG_OUTDIR ${OUTPUT_FOLDER}/fields2cover)
+set(LIBRARY_OUTPUT_PATH ${OUTPUT_FOLDER}/fields2cover)
+
+set(CMAKE_SWIG_FLAGS "-py3;-DPY3")
 
 if(BUILD_DOC)
   list(APPEND CMAKE_SWIG_FLAGS "-doxygen")
 endif()
 
-set(CMAKE_SWIG_FLAGS "")
 set_source_files_properties(
   ../${PROJECT_NAME}.i
   PROPERTIES CPLUSPLUS ON
 )
 
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../include/
+  ${CMAKE_SOURCE_DIR}/include/
   ${Python_INCLUDE_DIRS}
 )
 
@@ -30,84 +29,47 @@ SWIG_ADD_LIBRARY(fields2cover_python
   LANGUAGE python
   SOURCES ../${PROJECT_NAME}.i
 )
+
 SWIG_LINK_LIBRARIES(fields2cover_python
   Fields2Cover
-  ${Python_LIBRARIES}
-  ${PROJ_LIBRARY}
   ${GDAL_LIBRARIES}
+  ${CMAKE_THREAD_LIBS_INIT}
+  -lgeos_c
+  ${MATH_LIBRARY}
+  ortools::ortools
+  nlohmann_json::nlohmann_json
+  tinyxml2::tinyxml2
+  steering_functions
+  matplot
 )
 
 # Files to install with Python
 set(
   PYTHON_INSTALL_FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/fields2cover.py
-  ${CMAKE_CURRENT_BINARY_DIR}/_fields2cover_python.so
+  ${OUTPUT_FOLDER}/fields2cover/fields2cover.py
+  ${OUTPUT_FOLDER}/fields2cover/_fields2cover_python.so
 )
 
 # Configure setup.py and copy to output directory
-set(SETUP_PY_IN ${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in)
-set(SETUP_PY_OUT ${CMAKE_CURRENT_BINARY_DIR}/setup.py)
-configure_file(${SETUP_PY_IN} ${SETUP_PY_OUT})
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml.in ${OUTPUT_FOLDER}/pyproject.toml)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/MANIFEST.in ${OUTPUT_FOLDER}/MANIFEST.in COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/LICENSE ${OUTPUT_FOLDER}/LICENSE COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/README.rst ${OUTPUT_FOLDER}/README.rst COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/__init__.py.in ${OUTPUT_FOLDER}/fields2cover/__init__.py COPYONLY)
 
-set(PYPROJECT_IN ${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml)
-set(PYPROJECT_OUT ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml)
-configure_file(${PYPROJECT_IN} ${PYPROJECT_OUT} COPYONLY)
-
-set(MANIFEST_IN ${CMAKE_CURRENT_SOURCE_DIR}/MANIFEST.in)
-set(MANIFEST_OUT ${CMAKE_CURRENT_BINARY_DIR}/MANIFEST.in)
-configure_file(
-  ${MANIFEST_IN}
-  ${MANIFEST_OUT}
-  COPYONLY
-)
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE
-  ${CMAKE_CURRENT_BINARY_DIR}/LICENSE
-  COPYONLY
-)
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../README.rst
-  ${CMAKE_CURRENT_BINARY_DIR}/README.rst
-  COPYONLY
-)
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/__init__.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/__init__.py
-  COPYONLY
-)
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/__init__.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/fields2cover/__init__.py
-  COPYONLY
+set_target_properties(fields2cover_python PROPERTIES
+    BUILD_RPATH "$ORIGIN"
+    INSTALL_RPATH "$ORIGIN"
 )
 
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/../../src
-  DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/fields2cover
+add_custom_command(TARGET fields2cover_python POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/libFields2Cover.so ${OUTPUT_FOLDER}/fields2cover/  # Add fields2cover
+    COMMAND ${CMAKE_COMMAND} -E copy ${ortools_SOURCE_DIR}/lib/libortools.so.9 ${OUTPUT_FOLDER}/fields2cover/  # Add ortools
 )
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/../../include
-  DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/fields2cover
-)
-
 
 # Install target to call setup.py
-if(Python_VERSION VERSION_GREATER_EQUAL 3)
-  add_custom_target(install-python
-    DEPENDS _fields2cover_python
-    COMMAND python3 ${SETUP_PY_OUT} install --prefix=${CMAKE_INSTALL_PREFIX}
-  )
-  install(CODE "execute_process(COMMAND python3 ${SETUP_PY_OUT} install --prefix=${CMAKE_INSTALL_PREFIX})")
-elseif(Python_VERSION VERSION_GREATER_EQUAL 2)
-  add_custom_target(
-    install-python
-    DEPENDS
-      _fields2cover_python
-    COMMAND
-      python ${SETUP_PY_OUT} install
-  )
-  install(CODE "execute_process(COMMAND python ${SETUP_PY_OUT} install)")
-endif()
-
-
-
+add_custom_target(install-python
+  DEPENDS fields2cover_python
+  COMMAND python3 ${SETUP_PY_OUT} install --prefix=${CMAKE_INSTALL_PREFIX}
+)
+install(CODE "execute_process(COMMAND python3 -m pip install ${OUTPUT_FOLDER} --prefix=${CMAKE_INSTALL_PREFIX})")
