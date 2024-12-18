@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel>=0.34.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fields2cover"
+version = "@PROJECT_VERSION@"
+description = "Robust and efficient coverage paths for autonomous agricultural vehicles. A modular and extensible Coverage Path Planning library"
+authors = [{ name = "Wageningen University", email = "gonzalo.miermunoz@wur.nl" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: BSD-3 License",
+    "Programming Language :: C++",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["agtech", "fields2cover", "coverage path planning", "path planning", "coverage", "agriculture", "tractor"]
+dependencies = [
+]
+requires-python = ">=3.8"
+
+[tool.setuptools]
+zip-safe = false
+
+[tool.setuptools.package-data]
+fields2cover = ["*.so", "*.so.*"]
+
+[tool.setuptools.dynamic]
+readme = { file = "README.rst", content-type = "text/reStructuredText" }
+
+[tool.distutils.bdist_wheel]
+plat-name = "linux_x86_64"
+python-tag = "cp310"
